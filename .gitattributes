@@ -9,17 +9,17 @@
 data/csv/*.csv text eol=lf
 
 # =========================
-# PNG images should be treated as binary
+# PNG images tracked using Git LFS
 # =========================
-data/raw_images/*.png binary
+data/raw_images/*.png filter=lfs diff=lfs merge=lfs -text
 
 # =========================
-# Optional: make sure YAML stays clean
+# YAML clean endings
 # =========================
 *.yaml text eol=lf
 *.yml text eol=lf
 
 # =========================
-# Optional: python scripts line ending
+# Python scripts clean endings
 # =========================
 *.py text eol=lf
