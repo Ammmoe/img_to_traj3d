@@ -1,0 +1,25 @@
+# =========================
+# Normalize line endings
+# =========================
+* text=auto
+
+# =========================
+# CSV should be treated as text
+# =========================
+data/csv/*.csv text eol=lf
+
+# =========================
+# PNG images should be treated as binary
+# =========================
+data/raw_images/*.png binary
+
+# =========================
+# Optional: make sure YAML stays clean
+# =========================
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# =========================
+# Optional: python scripts line ending
+# =========================
+*.py text eol=lf

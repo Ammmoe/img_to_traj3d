@@ -1,0 +1,61 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Jupyter / notebooks
+.ipynb_checkpoints/
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# =========================
+# Logs / cache
+# =========================
+*.log
+.cache/
+.pytest_cache/
+.mypy_cache/
+
+# =========================
+# Data outputs (ignore)
+# =========================
+data/outputs/
+
+# Ignore everything in data/ by default
+data/*
+
+# But allow specific folders
+!data/raw_images/
+!data/csv/
+
+# Allow png images in raw_images
+!data/raw_images/*.png
+
+# Allow csv files in csv folder
+!data/csv/*.csv
+
+# =========================
+# OS stuff
+# =========================
+Thumbs.db
