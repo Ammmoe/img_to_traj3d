@@ -12,7 +12,7 @@ def ensure_dir(folder_path):
 
 
 def run_tracking(
-    raw_images_folder="data/raw_images",
+    raw_images_folder="data/raw_images/images_3",
     output_csv_path="data/outputs/csv/tracked_results.csv",
     output_images_folder="data/outputs/images/tracking_vis",
     save_visualization=True,
@@ -28,7 +28,7 @@ def run_tracking(
         raise RuntimeError(f"No PNG images found in: {raw_images_folder}")
 
     # Load first frame
-    first_frame = load_image(image_paths[0])
+    first_frame = load_image(image_paths[200])
 
     print("Draw initial bounding box on the drone and press ENTER/SPACE.")
     bbox = cv2.selectROI("Select ROI", first_frame, fromCenter=False, showCrosshair=True)
@@ -42,7 +42,7 @@ def run_tracking(
 
     results = []
 
-    for frame_idx, img_path in enumerate(image_paths):
+    for frame_idx, img_path in enumerate(image_paths[200:]):  # start from frame 200
         frame = load_image(img_path)
         image_name = os.path.basename(img_path)
 

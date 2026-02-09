@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.axes._axes as ax
 
 def normalize(v):
     norm = np.linalg.norm(v)
@@ -13,11 +15,54 @@ def compute_ray(K, R, T, p):
     R: 3x3 rotation matrix
     T: 3x1 translation vector (unused here but you may want for C_i)
     """
+    # Convert from camera frame (x_cam, y_cam, z_cam) to world frame (x_world, y_world, z_world)
+    R_cam_to_world = np.array([
+        [1,  0,  0],
+        [0,  0,  1],
+        [0,  -1,  0]
+    ])
+    
     p_h = np.array([p[0], p[1], 1.0])
     K_inv = np.linalg.inv(K)
     ray_cam = K_inv @ p_h          # vector in camera coordinates
-    ray_world = R.T @ ray_cam      # rotate to world coordinate
-    l_i = normalize(ray_world)
+    
+    # First rotate ray_cam by camera-to-world fixed rotation
+    ray_cam_corrected = R_cam_to_world @ ray_cam
+    
+    # ray_world = R.T @ ray_cam_corrected      # rotate to world coordinate
+    # ray_world = R.T @ ray_cam      # rotate to world coordinate
+    
+    l_i = normalize(ray_cam_corrected)
+
+    # # debugging camera coordinate axes in world frame
+    # origin = np.zeros(3)
+    # axes_cam = np.eye(3)  # x, y, z unit vectors in camera frame
+
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+
+    # for i, axis in enumerate(axes_cam.T):
+    #     # Apply fixed rotation
+    #     axis_corrected = R_cam_to_world @ axis
+
+    #     # Apply camera pose rotation to world
+    #     axis_world = R.T @ axis_corrected
+
+    #     ax.quiver(origin[0], origin[1], origin[2],
+    #               axis_world[0], axis_world[1], axis_world[2],
+    #               length=1.0, normalize=True,
+    #               color=['r', 'g', 'b'][i], label=f'Axis {["x", "y", "z"][i]}')
+
+    # ax.legend()
+    # ax.set_xlim([-1,1])
+    # ax.set_ylim([-1,1])
+    # ax.set_zlim([-1,1])
+    # ax.set_xlabel('X')
+    # ax.set_ylabel('Y')
+    # ax.set_zlabel('Z')
+    # ax.set_title('Camera Axes in World Coordinates')
+    # plt.show()
+    
     return l_i
 
 def construct_Theta(t, K):
@@ -151,6 +196,7 @@ def evaluate_model(beta, K, L, C, t_list):
     N = len(L)
     for i in range(N):
         pred_ray = normalize(P[i] - C[i])
+        # pred_ray = normalize(C[i] - P[i])  # Corrected direction from point to camera
         total_error += squared_ray_error(pred_ray, L[i])
     return total_error
 
@@ -161,44 +207,46 @@ def select_optimal_order(K_max, L, C, t_list):
     
     Returns: K_star, beta_star
     """
-    # best_K = 0
-    # best_beta = None
-    # min_error = np.inf
+    best_K = 0
+    best_beta = None
+    min_error = np.inf
     
-    # for K in range(K_max+1):
-    #     Theta_list = [construct_Theta(t, K) for t in t_list]
-    #     A, B = build_matrices(L, C, Theta_list)
+    for K in range(K_max+1):
+        Theta_list = [construct_Theta(t, K) for t in t_list]
+        A, B = build_matrices(L, C, Theta_list)
         
-    #     # Least squares beta
-    #     ATA_inv = np.linalg.pinv(A.T @ A)
-    #     beta_ls = ATA_inv @ A.T @ B
+        # Least squares beta
+        ATA_inv = np.linalg.pinv(A.T @ A)
+        beta_ls = ATA_inv @ A.T @ B
         
-    #     # Ridge regression beta
-    #     beta_ridge, r = ridge_regression(A, B, beta_ls)
+        # Ridge regression beta
+        beta_ridge, r = ridge_regression(A, B, beta_ls)
         
-    #     error = evaluate_model(beta_ridge, K, L, C, t_list)
+        error = evaluate_model(beta_ridge, K, L, C, t_list)
         
-    #     print(f"K={K}, ridge param r={r:.4e}, squared ray error={error:.4e}")
+        print(f"K={K}, ridge param r={r:.4e}, squared ray error={error:.4e}")
         
-    #     if error < min_error:
-    #         min_error = error
-    #         best_K = K
-    #         best_beta = beta_ridge
+        if error < min_error:
+            min_error = error
+            best_K = K
+            best_beta = beta_ridge
     
-    K_fixed = 2  # Fixed polynomial order for final model
-    Theta_list = [construct_Theta(t, K_fixed) for t in t_list]
-    A, B = build_matrices(L, C, Theta_list)
+    # K_fixed = 20  # Fixed polynomial order for final model
+    # Theta_list = [construct_Theta(t, K_fixed) for t in t_list]
+    # A, B = build_matrices(L, C, Theta_list)
     
-    # Least squares beta
-    ATA_inv = np.linalg.pinv(A.T @ A)
-    beta_ls = ATA_inv @ A.T @ B
+    # print(f"A shape: {A.shape}, B shape: {B.shape}")
     
-    # Ridge regression beta
-    beta_ridge, r = ridge_regression(A, B, beta_ls)
+    # # Least squares beta
+    # ATA_inv = np.linalg.pinv(A.T @ A)
+    # beta_ls = ATA_inv @ A.T @ B
     
-    error = evaluate_model(beta_ridge, K_fixed, L, C, t_list)
-    print(f"Fixed K={K_fixed}, ridge param r={r:.4e}, squared ray error={error:.4e}")
+    # # Ridge regression beta
+    # beta_ridge, r = ridge_regression(A, B, beta_ls)
     
-    return K_fixed, beta_ridge
+    # error = evaluate_model(beta_ridge, K_fixed, L, C, t_list)
+    # print(f"Fixed K={K_fixed}, ridge param r={r:.4e}, squared ray error={error:.4e}")
+    
+    # return K_fixed, beta_ridge
     
     return best_K, best_beta

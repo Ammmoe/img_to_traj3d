@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from img_to_traj3d.camera.camera_model import load_camera_config, load_camera_poses_from_csv  # Your method to load K, R, T arrays
+from img_to_traj3d.camera.camera_model import load_camera_config, load_camera_poses_from_csv, load_camera_poses_from_csv_with_quat  # Your method to load K, R, T arrays
 from img_to_traj3d.tracking.kcf_tracker import load_tracked_results  # optional helper
 from img_to_traj3d.utils.math_utils import (
     compute_ray, construct_Theta, build_matrices, ridge_regression,
@@ -40,48 +40,70 @@ def load_tracked_points(tracked_csv_path, N=70):
     return frames, images, pixels
 
 def load_camera_poses(N, camera_pose_csv_path):
-    """
-    Dummy function: You need to implement loading actual R_i, T_i, and K for each frame i.
-    Return:
-      - K: 3x3 intrinsics matrix (assumed constant)
-      - R_list: list of 3x3 rotation matrices for frames 0..N-1
-      - T_list: list of 3x1 translation vectors for frames 0..N-1 (camera positions)
-    """
-    K, R_single = load_camera_config()  # now only returns two variables
-    R_list = [R_single] * N  # replicate R for all frames
+    # """
+    # Dummy function: You need to implement loading actual R_i, T_i, and K for each frame i.
+    # Return:
+    #   - K: 3x3 intrinsics matrix (assumed constant)
+    #   - R_list: list of 3x3 rotation matrices for frames 0..N-1
+    #   - T_list: list of 3x1 translation vectors for frames 0..N-1 (camera positions)
+    # """
+    # K, R_single = load_camera_config()  # now only returns two variables
+    # R_list = [R_single] * N  # replicate R for all frames
     
-    T_list = load_camera_poses_from_csv(camera_pose_csv_path)
-    if len(T_list) < N:
-        raise ValueError("Not enough camera poses in CSV for N frames")
+    # T_list = load_camera_poses_from_csv(camera_pose_csv_path)
+    # if len(T_list) < N:
+    #     raise ValueError("Not enough camera poses in CSV for N frames")
     
-    return K, R_list[:N], T_list[:N]
+    # return K, R_list[:N], T_list[:N]
+    
+    """
+    Load camera intrinsics K, per-frame rotations R_list and translations T_list
+    for the first N frames from CSV file containing quaternions and positions.
+    """
+    K, _ = load_camera_config()  # Only intrinsics
+
+    T_list, R_list_full = load_camera_poses_from_csv_with_quat(camera_pose_csv_path)
+
+    if len(T_list) < N or len(R_list_full) < N:
+        raise ValueError(f"Not enough camera poses in CSV for {N} frames")
+
+    return K, R_list_full[:N], T_list[:N]
 
 def main():
-    N = 70
+    N = 200
+    start_idx = 200  # starting from frame 200
     # Paths
     tracked_csv_path = 'data/outputs/csv/tracked_results.csv'
-    gt_csv_path = 'data/csv/grouped_data.csv'
+    gt_csv_path = 'data/csv/grouped_data_3.csv'
     
     # Load data
     frames, images, pixels = load_tracked_points(tracked_csv_path, N)
     friendly_gt, unauthorized_gt, gt_images = load_ground_truth(gt_csv_path)
-    K, R_list, T_list = load_camera_poses(N, 'data/csv/grouped_data.csv')
+    K, R_list, T_list = load_camera_poses(start_idx+N, 'data/csv/grouped_data_3.csv')
     
     # Compute normalized rays for all tracked points
     L = []
     C = []
-    # t_list = (frames - frames[0]) / (frames[-1] - frames[0])  # normalize time to [0,1]
-    t_list = frames
+    t_list = (frames - frames[0]) / (frames[-1] - frames[0])  # normalize time to [0,1]
+    # t_list = frames
+    
+    print("len(pixels):", len(pixels))
+    print("len(R_list):", len(R_list))
+    print("len(T_list):", len(T_list))
+    print("len(friendly_gt):", len(friendly_gt))
+    print("start_idx:", start_idx)
+
     
     for i in range(N):
-        l_i = compute_ray(K, R_list[i], T_list[i], pixels[i])
+        idx = start_idx + i # Adjust index to match frame numbering
+        l_i = compute_ray(K, R_list[idx], T_list[idx], pixels[i])
         L.append(l_i)
         # C.append(T_list[i].reshape(3))  # camera center
         # use friendly_gt as camera center
-        C.append(friendly_gt[i].reshape(3))
+        C.append(friendly_gt[idx].reshape(3))
     
     # Select optimal polynomial order and estimate motion parameters
-    K_max = 3
+    K_max = 10
     best_K, best_beta = select_optimal_order(K_max, L, C, t_list)
     print(f"Optimal polynomial degree: {best_K}")
     
@@ -92,12 +114,12 @@ def main():
     # Prepare camera trajectory (camera positions)
     # cam_positions = np.array(C)  # (N, 3)
     # Prepare camera trajectory from ground truth
-    cam_positions = friendly_gt[:N]
+    cam_positions = friendly_gt[start_idx:start_idx + N]
     
     # Prepare ground truth trajectory for unauthorized drone for comparison
     # Match GT images with tracked images, or assume order is consistent
     # We'll take first N points from unauthorized_gt as example
-    P_gt = unauthorized_gt[:N]
+    P_gt = unauthorized_gt[start_idx:start_idx + N]
     
     print("Predicted positions (P_pred) stats:")
     print(f"Min: {P_pred.min(axis=0)}")
@@ -120,18 +142,48 @@ def main():
     print(f"  Start: {P_pred[0]}")
     print(f"  End:   {P_pred[-1]}")
     
-    # Plot all trajectories
-    fig = plt.figure(figsize=(10,8))
+    # # Plot all trajectories
+    # fig = plt.figure(figsize=(10,8))
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.plot(cam_positions[:,0], cam_positions[:,1], cam_positions[:,2], 'b-', label='Camera Trajectory')
+    # ax.plot(P_gt[:,0], P_gt[:,1], P_gt[:,2], 'g-', label='Target Trajectory')
+    # # ax.plot(P_pred[:,0], P_pred[:,1], P_pred[:,2], 'r--', label='Predicted Trajectory')
+    # ax.scatter(P_pred[:,0], P_pred[:,1], P_pred[:,2], c='r', marker='o', label='Reconstructed Target Positions')
+    
+    # ax.set_xlabel('X')
+    # ax.set_ylabel('Y')
+    # ax.set_zlabel('Z')
+    # ax.set_title('3D Trajectory Reconstruction from Mono-Camera Images')
+    # ax.legend()
+    # plt.show()
+    
+    # Visualization
+    fig = plt.figure(figsize=(12,10))
     ax = fig.add_subplot(111, projection='3d')
+    
+    # Plot camera trajectory
     ax.plot(cam_positions[:,0], cam_positions[:,1], cam_positions[:,2], 'b-', label='Camera Trajectory')
+    
+    # Plot ground truth drone trajectory
     ax.plot(P_gt[:,0], P_gt[:,1], P_gt[:,2], 'g-', label='Target Trajectory')
-    # ax.plot(P_pred[:,0], P_pred[:,1], P_pred[:,2], 'r--', label='Predicted Trajectory')
+    
+    # Plot reconstructed drone trajectory
     ax.scatter(P_pred[:,0], P_pred[:,1], P_pred[:,2], c='r', marker='o', label='Reconstructed Target Positions')
+    
+    # Plot rays as arrows: from camera position C[i], in direction L[i]
+    ray_length = 8.0  # adjust length for visualization
+    
+    for i in range(N):
+        start = C[i]
+        direction = L[i]
+        ax.quiver(start[0], start[1], start[2], 
+                  direction[0], direction[1], direction[2], 
+                  length=ray_length, normalize=True, color='orange', alpha=0.6, arrow_length_ratio=0.02)
     
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    ax.set_title('3D Trajectory Reconstruction from Mono-Camera Images')
+    ax.set_title('3D Trajectory Reconstruction with Camera Rays')
     ax.legend()
     plt.show()
 
